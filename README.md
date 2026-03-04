@@ -1,129 +1,221 @@
-# 📧 Email Analysis Project
+# Email Analysis API
 
-An AI-powered pipeline for analyzing telecom industry emails using LLM prompt engineering. The project ingests a structured JSON dataset of emails, sends them through a customizable prompt layer to an external AI API, and writes structured analysis results — including extracted images — to an output directory.
+FastAPI service for enterprise email analysis using a Retrieval-Augmented Generation (RAG) pipeline.
 
-> **Repository:** [github.com/T0nY-IV/Email_Analysis_Project](https://github.com/T0nY-IV/Email_Analysis_Project)
+The system:
+- reads an input email from a text file,
+- retrieves relevant context from a local dataset,
+- asks a local LLM (Ollama) to classify the email,
+- returns a strict JSON output,
+- appends result data to the dataset.
 
----
+## What This Project Solves
 
-## 📁 Project Structure
+This API classifies professional emails into workflow categories and extracts structured attributes.
 
+Current main workflow prompt (`prompt_orange`) returns:
+
+```json
+{
+  "email_id": "string",
+  "workflow_type": "Réclamation|Demande|other",
+  "attributes": {},
+  "confidence_score": 0.0
+}
 ```
-Email__Analysis/
-├── api.py                        # Entry point — runs the full analysis pipeline
-├── api_methodes.py               # API helper methods and request utilities
-├── prompt.py                     # Prompt templates for LLM-based email analysis
-├── dataset_telecom.json          # Input dataset of telecom emails
-└── emails_output/                # Generated output (auto-created on run)
-    ├── email_9585.txt
-    ├── email_9586.txt
-    ├── ...
-    ├── email_9599.txt
-    └── images/
-        └── <email_id>/           # Images extracted per email
-            └── 1.jpg
+
+## Project Structure
+
+- `api.py`: FastAPI app, RAG initialization, query endpoint, health/status endpoints.
+- `api_methodes.py`: utility methods for loading data, chunking text, and saving outputs.
+- `prompt.py`: prompt templates (`prompt_1`, `prompt_2`, `murged_prompt`, `prompt_orange`).
+- `dataset_telecom.json`: source corpus and (currently) output storage file.
+- `emails_output/`: example email files used as API inputs.
+
+## Code Walkthrough
+
+### `api.py`
+
+#### Global in-memory state
+The API keeps these objects in memory after initialization:
+- `embedding_model`
+- `client`
+- `collection`
+- `document_text`
+- `chunks`
+- `embeddings`
+
+This design avoids recomputing embeddings on each request.
+
+#### Request model
+`QueryRequest` (Pydantic) expects:
+
+```json
+{
+  "email_file": "path/to/email.txt"
+}
 ```
 
----
+#### `POST /initialize`
+This endpoint prepares the RAG system:
+1. Load embedding model: `SentenceTransformer("all-MiniLM-L6-v2")`.
+2. Load corpus from `dataset_telecom.json` using `load_document`.
+3. Split text into chunks of size `500` using `chunk_text`.
+4. Compute embeddings for all chunks.
+5. Create a local Chroma client and recreate collection `my_docs`.
+6. Insert all chunks and vectors into Chroma.
 
-## ⚙️ How It Works
+Returns status and number of chunks.
 
-The pipeline runs in three stages:
+#### `POST /query`
+This endpoint processes one email:
+1. Verify system is initialized.
+2. Build query embedding from `prompt_orange`.
+3. Retrieve top `5` similar chunks from Chroma.
+4. Read email text from `request.email_file`.
+5. Build `augmented_prompt` with:
+   - retrieved context,
+   - prompt instructions,
+   - email content.
+6. Call Ollama:
+   - model: `qwen3:1.7b`
+   - API: `ollama.chat(...)`
+7. Parse returned text as JSON (`json.loads`).
+8. Save pair `(input_email, output_json)` into dataset via `save_to_dataset`.
+9. Return JSON response directly.
 
-1. **Load** — `api.py` reads email records from `dataset_telecom.json`
-2. **Analyze** — each email is passed through the prompt templates in `prompt.py` and sent to the LLM API via the methods in `api_methodes.py`
-3. **Save** — results are written to `emails_output/email_<id>.txt`; images found in emails are saved to `emails_output/images/<id>/`
+#### `GET /health`
+Simple online check + initialized flag.
 
----
+#### `GET /status`
+Debug/status info:
+- embedding model loaded,
+- database initialized,
+- chunk count,
+- document loaded.
 
-## 🚀 Getting Started
+### `api_methodes.py`
 
-### Prerequisites
+#### `load_document(path)`
+Reads the whole file and returns text.
 
-- Python 3.8+
-- A valid API key for your LLM provider (e.g., OpenAI, Anthropic, etc.)
+#### `chunk_text(text, chunk_size=500)`
+Splits text into fixed-size sequential chunks.
 
-### Installation
+#### `save_to_dataset(input_email, output_data)`
+Appends one new record to `dataset_telecom.json`:
+
+```json
+{
+  "input_email": "...",
+  "output": {"...": "..."}
+}
+```
+
+Behavior details:
+- If file is missing: starts a new list.
+- If JSON is invalid: resets to empty list.
+- Writes full file back with `indent=2` and `ensure_ascii=False`.
+
+### `prompt.py`
+
+You defined multiple prompt strategies:
+- `prompt_1`: single domain + single intent schema.
+- `prompt_2`: multi-domain + multi-intent schema.
+- `murged_prompt`: richer merged schema with strict rules.
+- `prompt_orange`: workflow classification (`Réclamation` / `Demande`) with allowed attribute keys.
+
+Current API query flow uses **`prompt_orange`**.
+
+## Methods Used (Technical Approach)
+
+1. Retrieval-Augmented Generation (RAG)
+- Retrieve relevant context from dataset before generation.
+- Helps reduce hallucination and steer output to business context.
+
+2. Semantic Embedding
+- Model: `all-MiniLM-L6-v2`.
+- Converts chunks and query into vectors for similarity search.
+
+3. Vector Search with ChromaDB
+- Store chunks + embeddings in collection `my_docs`.
+- Query top-k similar chunks (`n_results=5`).
+
+4. Prompt Engineering with Strict JSON Schema
+- Prompt enforces a fixed output structure.
+- Includes business rules and allowed keys.
+
+5. JSON Post-processing + Persistence
+- Model output is parsed with `json.loads`.
+- Parsed result is persisted for future analysis.
+
+## Requirements
+
+- Python 3.10+
+- Ollama installed and running locally
+- Pulled model:
 
 ```bash
-git clone https://github.com/T0nY-IV/Email_Analysis_Project.git
-cd Email_Analysis_Project
-pip install -r requirements.txt
+ollama pull qwen3:1.7b
 ```
 
-### Configuration
-
-Set your API key as an environment variable:
+Install dependencies:
 
 ```bash
-export API_KEY="your_api_key_here"
+pip install fastapi uvicorn pydantic ollama sentence-transformers chromadb
 ```
 
-Or place it in a `.env` file at the project root:
-
-```
-API_KEY=your_api_key_here
-```
-
-### Run
+## Run the API
 
 ```bash
 python api.py
 ```
 
----
+Or:
 
-## 📂 Dataset Format
-
-`dataset_telecom.json` contains telecom-domain email records. Each entry should include at minimum an ID and email content. Example structure:
-
-```json
-[
-  {
-    "id": 9585,
-    "subject": "Network outage report - Region 4",
-    "body": "...",
-    "attachments": []
-  }
-]
+```bash
+uvicorn api:app --host 127.0.0.1 --port 8086 --reload
 ```
 
----
+Base URL: `http://127.0.0.1:8086`
 
-## 📤 Output
+## API Usage
 
-For each processed email, the pipeline produces:
+### 1) Initialize
 
-| Output | Description |
-|--------|-------------|
-| `emails_output/email_<id>.txt` | LLM-generated analysis result for the email |
-| `emails_output/images/<id>/*.jpg` | Images extracted from emails with attachments |
+```bash
+curl -X POST http://127.0.0.1:8086/initialize
+```
 
----
+### 2) Query one email
 
-## 🗂️ Module Overview
+```bash
+curl -X POST http://127.0.0.1:8086/query \
+  -H "Content-Type: application/json" \
+  -d "{\"email_file\":\"emails_output/email_9599.txt\"}"
+```
 
-### `api.py`
-The main script. Loads the dataset, iterates over email records, and coordinates the full analysis and output pipeline.
+### 3) Check service
 
-### `api_methodes.py`
-Contains helper functions for communicating with the external AI/LLM API — handling request formatting, response parsing, error handling, and any rate limiting logic.
+```bash
+curl http://127.0.0.1:8086/health
+curl http://127.0.0.1:8086/status
+```
 
-### `prompt.py`
-Defines the prompt templates used to instruct the LLM on how to analyze each email (e.g., summarization, classification, entity extraction, tone detection).
+## Important Notes
 
----
+- `persist_dir` in `api.py` is hard-coded to:
+  - `D:\studying\3eme info(DSI33)\PFE\chroma_db`
+- `dataset_telecom.json` is used both as:
+  - initialization corpus,
+  - output log of new predictions.
+- `/query` fails if Ollama returns non-JSON content.
+- CORS allows all origins (`*`).
 
-## 🤝 Contributing
+## Quick End-to-End Flow
 
-1. Fork the repo
-2. Create a branch: `git checkout -b feature/my-feature`
-3. Commit your changes: `git commit -m 'Add my feature'`
-4. Push: `git push origin feature/my-feature`
-5. Open a Pull Request
-
----
-
-## 📄 License
-
-Open source. See the repository for full license details.
+1. Start Ollama and pull model.
+2. Start API.
+3. Call `/initialize` once.
+4. Call `/query` with an email file path.
+5. Output JSON is returned and appended to `dataset_telecom.json`.
