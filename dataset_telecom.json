@@ -10587,5 +10587,74 @@
       },
       "confidence_score": 0.95
     }
+  },
+  {
+    "input_email": "UID: 9834\nFrom: client1@yahoo.com\nSubject: Problème persistant – Offre Business Pro\nDate: Tue, 03 Feb 2026 13:01:13 +0100\nAttachments: 1\n--------------------------------------------------\n\nBonjour,\n\nJe me permets de vous contacter concernant mon abonnement Offre Business Pro rattaché au site de Sfax.\n\nDepuis quelques jours, je rencontre un dysfonctionnement au niveau de mon équipement. Malgré plusieurs redémarrages de mon équipement, le problème persiste. Cela impacte directement notre activité quotidienne et ralentit considérablement notre travail.\n\nUn ticket est actuellement marqué comme “En cours”, mais je souhaiterais avoir plus de visibilité sur le délai de résolution ainsi qu’une éventuelle intervention si nécessaire.\n\nVous pouvez me contacter au 25318351 ou par email pour toute information complémentaire ou pour planifier une vérification technique.\n\nMerci d’avance pour votre retour rapide.\n\nCordialement,\nClient",
+    "output": {
+      "email_id": "9834",
+      "workflow_type": "Réclamation",
+      "attributes": {
+        "titre": "Problème persistant – Offre Business Pro",
+        "date": "Tue, 03 Feb 2026",
+        "tel": "25318351",
+        "email": "client1@yahoo.com",
+        "etat": "En cours",
+        "description": "Je rencontre un dysfonctionnement au niveau de mon équipement...",
+        "produit": "Offre Business Pro",
+        "site": "Sfax"
+      },
+      "confidence_score": 0.95
+    }
+  },
+  {
+    "input_email": "UID: 9868\nRayen gargouri <gargourirayen@gmail.com>\nJe vous contacte afin de solliciter une intervention technique concernant_x000D_\nun problème que nous rencontrons actuellement au niveau de notre_x000D_\ninstallation._x000D_\n_x000D_\nDepuis quelques jours, le service présente des interruptions fréquentes, ce_x000D_\nqui impacte notre activité. Nous vous serions reconnaissants de bien_x000D_\nvouloir planifier une intervention dans les plus brefs délais._x000D_\n_x000D_\nNous restons disponibles pour toute information complémentaire et pouvons_x000D_\nêtre contactés par téléphone si nécessaire._x000D_\n_x000D_\nDans l’attente de votre retour, merci de nous communiquer vos_x000D_\ndisponibilités ainsi qu’un devis estimatif avant toute intervention._x000D_\n_x000D_\nCordialement,_x000D_\nTéléphone : 22145789",
+    "output": {
+      "email_id": "9868",
+      "workflow_type": "Demande",
+      "attributes": {
+        "date": "Several days",
+        "description": "Service presenta des interruptions fréquentes",
+        "produit": "Offre Business Pro",
+        "site": "installation",
+        "email": "gargourirayen@gmail.com",
+        "tel": "22145789",
+        "type": "Demande"
+      },
+      "confidence_score": 0.95
+    }
+  },
+  {
+    "input_email": "UID: 9871\nRayen gargouri <gargourirayen@gmail.com>\nJe me permets de vous contacter afin de faire une demande d’installation_x000D_\nd’un nouvel équipement dans nos locaux._x000D_\n_x000D_\nNous souhaitons mettre en place une solution supplémentaire pour améliorer_x000D_\nla qualité de notre connexion. Idéalement, l’intervention pourrait avoir_x000D_\nlieu en début de semaine prochaine, de préférence le matin. Toutefois, si_x000D_\ncela n’est pas possible, nous restons flexibles selon vos disponibilités._x000D_\n_x000D_\nNous vous serions reconnaissants de bien vouloir nous transmettre un devis_x000D_\ndétaillé avant toute intervention. Si le coût reste raisonnable, nous_x000D_\npourrons valider rapidement la demande._x000D_\n_x000D_\nMerci également de prévoir tout le matériel nécessaire afin d’éviter_x000D_\nplusieurs déplacements._x000D_\n_x000D_\nN’hésitez pas à me contacter pour toute information complémentaire._x000D_\n_x000D_\nDans l’attente de votre retour._x000D_\n_x000D_\nCordialement,_x000D_\nTéléphone : 25318351",
+    "output": {
+      "email_id": "9871",
+      "workflow_type": "Demande",
+      "attributes": {
+        "date": null,
+        "description": "Je me permets de vous contacter afin de faire une demande d’installation",
+        "produit": null,
+        "site": "locaux",
+        "email": "gargourirayen@gmail.com",
+        "tel": "25318351",
+        "type": "installation"
+      },
+      "confidence_score": 0.95
+    }
+  },
+  {
+    "input_email": "UID: 9872\n\"H't yessine\" <ye20042004@gmail.com>\nBonjour,_x000D_\n_x000D_\nJe vous écris afin de vous demander une vérification de notre réseau, car_x000D_\nnous rencontrons des coupures intermittentes depuis quelques jours._x000D_\n_x000D_\nLe problème n’est pas constant, mais il impacte régulièrement notre_x000D_\ntravail, surtout en fin de journée. Nous souhaiterions donc qu’un_x000D_\ntechnicien puisse intervenir pour diagnostiquer la situation et proposer_x000D_\nune solution adaptée._x000D_\n_x000D_\nSi possible, nous préférerions une intervention en milieu de semaine,_x000D_\nplutôt le matin. Merci également de nous informer à l’avance du coût de_x000D_\nl’intervention avant toute validation._x000D_\n_x000D_\nVous pouvez me contacter directement pour organiser cela._x000D_\n_x000D_\nMerci d’avance pour votre aide._x000D_\n_x000D_\nCordialement,_x000D_\nTéléphone : 28456712",
+    "output": {
+      "email_id": "9872",
+      "workflow_type": "Demande",
+      "attributes": {
+        "date": "Mon, 03 Feb 2026",
+        "description": "nous rencontrons des coupures intermittentes depuis quelques jours",
+        "produit": null,
+        "site": null,
+        "email": "ye20042004@gmail.com",
+        "tel": "28456712",
+        "type": "Intervention"
+      },
+      "confidence_score": 0.95
+    }
   }
 ]
