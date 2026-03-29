@@ -47,5 +47,8 @@ COPY . .
 # Expose the port that the application listens on.
 EXPOSE 8086
 
+# Make the startup script executable.
+RUN chmod +x /app/start.sh
+
 # Run the application.
-CMD python api.py
+CMD ["/app/start.sh"]
