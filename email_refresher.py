@@ -1,13 +1,24 @@
+from email.header import decode_header
 import imaplib
 import email
 import os
 import re
 import json
 import time
+import threading
 import pandas as pd
 import dotenv
-from mail_analyser import loop_through_emails_and_send_requests, initialize_rag_system
-from api_methodes import get_last_excel_uid
+from streamlit import user
+from mail_analyser import loop_through_emails_and_send_requests
+from Mail_treatement_methodes import get_last_excel_uid, initialize
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+# Global stop event (thread-safe)
+_stop_event = threading.Event()
+_email_poller_thread = None
+_current_poll_interval = 60
 
 
 # Load credentials from the .env file (keeps secrets out of code).
@@ -124,12 +135,25 @@ def save_attachments(msg, email_uid, base_folder=OUTPUT_FOLDER):
     return attachments_info
 
 
+def decode_email_header(header_value):
+    """Properly decode RFC 2047 encoded email headers."""
+    if not header_value:
+        return ""
+    decoded_parts = decode_header(header_value)
+    result = []
+    for part, encoding in decoded_parts:
+        if isinstance(part, bytes):
+            result.append(part.decode(encoding or 'utf-8', errors='ignore'))
+        else:
+            result.append(part)
+    return ''.join(result)
+
 # ---- Main flow ----
 
 
 
 
-def run_once():
+def mail_getter():
     """One polling cycle: connect, fetch new emails, extract, and update state."""
     # Ensure the output directory exists.
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
@@ -140,8 +164,11 @@ def run_once():
 
     # Connect to Gmail over IMAP+SSL.
     mail = imaplib.IMAP4_SSL(IMAP_SERVER)
+
     try:
+        #login and select the inbox.
         mail.login(str(EMAIL_ACCOUNT), str(PASSWORD))
+        print("Successfully connected to the mailbox.")
         mail.select("inbox")
 
         # Search for new emails since the last UID we processed.
@@ -181,13 +208,116 @@ def run_once():
 
             # Extract attachments and message body.
             attachments = save_attachments(msg, email_uid, OUTPUT_FOLDER)
-            email_body = msg.get("from", "Unknown")+"\n"+get_body(msg)
-
+            email_body = "From: " + msg.get("from", "Unknown") + " \n " + "Subject: " + decode_email_header(msg.get("subject", "No Subject")) + " \n " + "Date: " + msg.get("date", "Unknown Date") + " \n " + get_body(msg)
+            try:
+                sender_email = os.getenv("mail_@")
+                sender_password = os.getenv("mail_code")
+    
+                if sender_email and sender_password:
+                    # Extract and decode the email subject for use in the response
+                    email_subject = decode_email_header(msg.get("subject", "No Subject"))
+                    sender_name = msg.get("from", "User").split("<")[0].strip() or "User"
+                    
+                    response_msg = MIMEMultipart()
+                    response_msg['From'] = sender_email
+                    response_msg['To'] = str(msg.get("from", "Unknown"))
+                    response_msg['Subject'] = f"Re: {email_subject}"
+    
+                    html_body = f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <style>
+                            .container {{
+                                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                                max-width: 600px;
+                                margin: 0 auto;
+                                background-color: #ffffff;
+                                border-radius: 16px;
+                                overflow: hidden;
+                                box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+                                border: 1px solid #e2e8f0;
+                            }}
+                            .header {{
+                                background: linear-gradient(135deg, #f97316, #8b5cf6);
+                                padding: 40px 20px;
+                                text-align: center;
+                                color: white;
+                            }}
+                            .content {{
+                                padding: 40px 30px;
+                                color: #1e293b;
+                                line-height: 1.6;
+                            }}
+                            .subject-card {{
+                                background-color: #f8fafc;
+                                border-radius: 12px;
+                                padding: 20px;
+                                margin: 24px 0;
+                                border-left: 4px solid #f97316;
+                            }}
+                            .subject-label {{
+                                color: #64748b;
+                                font-weight: 600;
+                                font-size: 0.75rem;
+                                text-transform: uppercase;
+                                letter-spacing: 0.05em;
+                                margin-bottom: 8px;
+                            }}
+                            .subject-text {{
+                                color: #0f172a;
+                                font-weight: 700;
+                                font-size: 1rem;
+                            }}
+                            .footer {{
+                                padding: 30px;
+                                text-align: center;
+                                color: #94a3b8;
+                                font-size: 0.8rem;
+                                background-color: #f8fafc;
+                                border-top: 1px solid #f1f5f9;
+                            }}
+                        </style>
+                    </head>
+                    <body style="background-color: #f8fafc; padding: 40px 20px; margin: 0;">
+                        <div class="container">
+                            <div class="header">
+                                <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em;">Orange Analytics</h1>
+                            </div>
+                            <div class="content">
+                                <h2 style="margin-top: 0; color: #0f172a; font-size: 20px;">Hello {sender_name},</h2>
+                                <p style="font-size: 16px; color: #475569;">Thank you for your email. We have received your message and will process it shortly.</p>
+    
+                                <div class="subject-card">
+                                    <div class="subject-label">Your Message</div>
+                                    <div class="subject-text">{email_subject}</div>
+                                </div>
+                                
+                                <p style="font-size: 14px; color: #64748b;">Our team is reviewing your request and will get back to you as soon as possible.</p>
+                            </div>
+                            <div class="footer">
+                                <p style="margin: 0;">&copy; 2026 Orange Analytics &bull; Security & Analysis Suite</p>
+                                <p style="margin: 4px 0 0 0;">This is an automated message, please do not reply.</p>
+                            </div>
+                        </div>
+                    </body>
+                    </html>
+                    """
+    
+                    response_msg.attach(MIMEText(html_body, 'html'))
+    
+                    # Using SMTP to send the email (IMAP is for reading/managing)
+                    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                        server.login(sender_email, sender_password)
+                        server.send_message(response_msg)
+                        print(f"Message sent in response to: {email_subject}")
+            except Exception as e:
+                print(f"Error sending message email: {str(e)}")
             # Log extracted data to console (useful for quick checks).
             email_json = {
                 "id": email_uid,
-                "from": msg.get("from", "Unknown"),
-                "subject": msg.get("subject", "No Subject"),
+                "from": msg.get("from", "Unknown"), #
+                "subject": decode_email_header(msg.get("subject", "No Subject")),
                 "date": msg.get("date", "Unknown Date"),
                 "body": email_body.strip(),
                 "attachments": attachments,
@@ -215,25 +345,74 @@ def run_once():
             pass
 
 
-def main():
-    """Run mailbox checks on a fixed interval until the user stops the script."""
+def stop_auto_refresh():
+    """Signal the background thread to stop"""
+    _stop_event.set()
+
+
+def reset_stop_event():
+    """Reset the stop flag before starting a new thread"""
+    _stop_event.clear()
+
+
+def get_poller_status():
+    """Return the current poller status"""
+    global _email_poller_thread, _current_poll_interval
+    is_alive = _email_poller_thread is not None and _email_poller_thread.is_alive()
+    return {
+        "is_running": is_alive,
+        "poll_interval_seconds": _current_poll_interval
+    }
+
+
+def start_email_poller(cooldown_seconds=None):
+    """Start the background poller and return the thread"""
+    global _email_poller_thread, _current_poll_interval
+
+    if cooldown_seconds is not None:
+        _current_poll_interval = cooldown_seconds
+
+    # Stop existing thread if running
+    if _email_poller_thread and _email_poller_thread.is_alive():
+        stop_auto_refresh()
+        _email_poller_thread.join(timeout=2)
+
+    reset_stop_event()
+    _email_poller_thread = threading.Thread(
+        target=auto_refresh,
+        args=(cooldown_seconds,),
+        daemon=True
+    )
+    _email_poller_thread.start()
+    return _email_poller_thread
+
+
+def auto_refresh(cooldown_seconds=None):
+    """Run mailbox checks on a fixed interval until stopped."""
+    global _current_poll_interval
+
+    # Use provided cooldown or default
+    interval = cooldown_seconds if cooldown_seconds is not None else _current_poll_interval
+
     # Sanity check credentials before starting the loop.
     if not EMAIL_ACCOUNT or not PASSWORD:
         raise ValueError("Missing credentials. Set mail_@ and mail_code in your .env file.")
 
-    print(f"Mailbox watcher started. Polling every {POLL_INTERVAL_SECONDS} seconds.")
+    print(f"Mailbox watcher started. Polling every {interval} seconds.")
 
     try:
-        initialize_rag_system()
-        while True:
+        initialize()
+        while not _stop_event.is_set():
             print(time.strftime("[%Y-%m-%d %H:%M:%S] Checking for new emails..."))
-            run_once()
-            print(f"Sleeping for {POLL_INTERVAL_SECONDS} seconds...\n")
-            loop_through_emails_and_send_requests()  # Call the function to process emails and send requests to the API
-            time.sleep(POLL_INTERVAL_SECONDS)
+            mail_getter()
+            loop_through_emails_and_send_requests()
+            print(f"Sleeping for {interval} seconds...\n")
+            # Use wait() instead of sleep() so it responds to stop quickly
+            if _stop_event.wait(timeout=interval):
+                break  # Stop event was set during sleep
     except KeyboardInterrupt:
         print("Mailbox watcher stopped by user.")
 
 
 if __name__ == "__main__":
-    main()
+    auto_refresh()
